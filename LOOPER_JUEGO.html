@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Looper - Juego Mejorado</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000000;
+            color: #eee;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #gameArea {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            background-color: #1a1a1a;
+        }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+        }
+        #puntaje {
+            font-size: 2em;
+            font-weight: bold;
+            color: #363636;
+            text-shadow: 0 0 10px #363636;
+        }
+        #instructions {
+            font-size: 1em;
+            color: #363636;
+        }
+        .back-to-menu {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+        }
+        .menu-button {
+            padding: 10px 20px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid #363636;
+            color: #363636;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        .menu-button:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+    <script>
+        const usuario = new URLSearchParams(window.location.search).get('usuario');
+        if (usuario) {
+            localStorage.setItem('usuario_looper', usuario);
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="guardar_ranking.js"></script>
+</head>
+<body>
+    <div id="gameArea"></div>
+    <div id="ui-container">
+        <div id="puntaje">Puntaje: 0</div>
+        <div id="instructions">Mantén presionado para cerrar</div>
+    </div>
+    
+    <a href="LOOPER_MENU.html" class="back-to-menu">
+        <button class="menu-button">Volver al Menú</button>
+    </a>
+
+    <script>
+        // --- MODO ---
+        const params = new URLSearchParams(window.location.search);
+        const modo = params.get('modo') || 'practica';
+
+        // --- CONFIGURACIÓN ---
+        const gameArea = document.getElementById('gameArea');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        gameArea.appendChild(canvas);
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        const centerY = () => canvas.height / 2;
+
+        // Serpiente
+        const serpienteWidth = 18;
+        const serpienteLength = 40;
+        const startX = 70;
+        const endX = startX + serpienteLength;
+
+        // Obstáculos
+        const obstaculoBaseSize = serpienteWidth * 2.2;
+        const obstaculoBaseSpeed = 250; 
+        const obstaculoBaseInterval = 1.8;
+
+        const separationMin = 2;
+
+        // --- ESTADO DEL JUEGO ---
+        let puntaje = 0;
+        let gameTime = 0;
+        let obstaculos = [];
+        let gameOver = false;
+        let lastTime = 0;
+        let gameHasStarted = false;
+
+        let sepActual = separationMin;
+        let sepObjetivo = separationMin;
+        let isClosing = false;
+        
+        let targetDiagonalOffset = 0;
+        let currentDiagonalOffset = 0;
+
+        // --- CONTROLES ---
+        function startGameOnce() {
+            if (!gameHasStarted) {
+                gameHasStarted = true;
+                lastTime = performance.now();
+            }
+        }
+
+        gameArea.addEventListener('mousedown', () => { startGameOnce(); isClosing = true; });
+        gameArea.addEventListener('touchstart', e => { startGameOnce(); isClosing = true; e.preventDefault(); });
+        gameArea.addEventListener('mouseup', () => isClosing = false);
+        gameArea.addEventListener('mouseleave', () => isClosing = false);
+        gameArea.addEventListener('touchend', () => isClosing = false);
+        window.addEventListener('keydown', e => { if (e.code === 'Space') { startGameOnce(); isClosing = true; } });
+        window.addEventListener('keyup', e => { if (e.code === 'Space') isClosing = false; });
+
+        const puntajeDiv = document.getElementById('puntaje');
+
+        function getDifficultyMultiplier() {
+            return 1 + puntaje / 300;
+        }
+        
+        // --- SERPIENTES ---
+        function updateSerpientes(deltaTime) {
+            const maxOpeningSpeed = 500 * deltaTime;
+            const maxClosingSpeed = 700 * deltaTime;
+
+            if (isClosing) {
+                sepObjetivo -= maxClosingSpeed; 
+            } else {
+                sepObjetivo += maxOpeningSpeed;
+            }
+
+            sepObjetivo = Math.max(separationMin, sepObjetivo);
+            
+            const lerpFactor = 8;
+            let previousSep = sepActual;
+            sepActual += (sepObjetivo - sepActual) * lerpFactor * deltaTime;
+
+            const movementSpeed = sepActual - previousSep;
+            targetDiagonalOffset = movementSpeed * 2.5;
+            targetDiagonalOffset = Math.max(-20, Math.min(targetDiagonalOffset, 20));
+            
+            const smoothingFactor = 12 * deltaTime;
+            currentDiagonalOffset += (targetDiagonalOffset - currentDiagonalOffset) * smoothingFactor;
+        }
+
+        function drawSerpientes() {
+            ctx.save();
+            
+            const drawDiagonalSerpent = (y, color, shadowColor, direction) => {
+                ctx.beginPath();
+                const startPointY = y;
+                const endPointY = y - currentDiagonalOffset * direction;
+                ctx.moveTo(startX, startPointY);
+                ctx.lineTo(endX, endPointY);
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = serpienteWidth;
+                ctx.shadowColor = shadowColor;
+                ctx.shadowBlur = 15;
+                ctx.lineCap = "round";
+                ctx.stroke();
+            };
+
+            const drawSpiral = () => {
+                const rollTime = gameTime * 15;
+                const rollSin = Math.sin(rollTime);
+                const spiralFreq = 0.08; 
+                const spiralAmp = serpienteWidth * 0.4;
+                const frontWidth = serpienteWidth * 0.7;
+                const backWidth = serpienteWidth * 0.55;
+
+                const drawSpiralWave = (phase, color, width) => {
+                    ctx.beginPath();
+                    ctx.moveTo(startX, centerY() + Math.sin(startX * spiralFreq + rollTime + phase) * spiralAmp);
+                    for (let x = startX + 5; x <= endX; x += 5) {
+                        ctx.lineTo(x, centerY() + Math.sin(x * spiralFreq + rollTime + phase) * spiralAmp);
+                    }
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = width;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 12;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+                };
+
+                if (rollSin > 0) {
+                    drawSpiralWave(Math.PI, "#00eaff", backWidth);
+                    drawSpiralWave(0, "#ff00c8", frontWidth);
+                } else {
+                    drawSpiralWave(0, "#ff00c8", backWidth);
+                    drawSpiralWave(Math.PI, "#00eaff", frontWidth);
+                }
+            };
+            
+            const transitionStart = separationMin;
+            const transitionEnd = separationMin + 40;
+
+            if (sepActual <= transitionStart) {
+                drawSpiral();
+            } else if (sepActual > transitionStart && sepActual < transitionEnd) {
+                const progress = (sepActual - transitionStart) / (transitionEnd - transitionStart);
+                ctx.globalAlpha = 1 - progress;
+                drawSpiral();
+                ctx.globalAlpha = progress;
+                drawDiagonalSerpent(centerY() - sepActual / 2, "#00eaff", "#00eaff", 1);
+                drawDiagonalSerpent(centerY() + sepActual / 2, "#ff00c8", "#ff00c8", -1);
+            } else {
+                ctx.globalAlpha = 1;
+                drawDiagonalSerpent(centerY() - sepActual / 2, "#00eaff", "#00eaff", 1);
+                drawDiagonalSerpent(centerY() + sepActual / 2, "#ff00c8", "#ff00c8", -1);
+            }
+            
+            ctx.restore();
+        }
+        
+        function getDynamicColor() {
+            const r = Math.min(255, 255 - Math.floor(puntaje / 3));
+            const g = Math.min(255, 255 - Math.floor(puntaje / 2));
+            const b = 255;
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // --- PAREDES ONDULANTES ---
+        function updateAndDrawWalls() {
+            ctx.save();
+            const wallColor = getDynamicColor();
+            ctx.fillStyle = wallColor;
+            ctx.shadowColor = wallColor;
+            ctx.shadowBlur = 15;
+            const amplitude = canvas.height * 0.1;
+            const frequency = 2;
+            const baseHeight = canvas.height * 0.15;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            for (let x = 0; x <= canvas.width; x += 10) {
+                ctx.lineTo(x, baseHeight + Math.sin(x * 0.01 + gameTime * frequency) * amplitude);
+            }
+            ctx.lineTo(canvas.width, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height);
+            for (let x = 0; x <= canvas.width; x += 10) {
+                ctx.lineTo(x, canvas.height - (baseHeight + Math.sin(x * 0.01 + gameTime * frequency) * amplitude));
+            }
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function getWallPositions(x) {
+            const amplitude = canvas.height * 0.1;
+            const frequency = 2;
+            const baseHeight = canvas.height * 0.15;
+            const wave = Math.sin(x * 0.01 + gameTime * frequency) * amplitude;
+            return { topWallY: baseHeight + wave, bottomWallY: canvas.height - (baseHeight + wave) };
+        }
+
+        // --- OBSTÁCULOS (NUEVOS PATRONES) ---
+        let nextSpawnTime = 1;
+        const PATTERNS = { OBS1:1, OBS2:2, OBS3:3, OBS4:4, OBS5:5, OBS6:6 };
+
+        function scheduleNextObstacle() {
+            const difficulty = getDifficultyMultiplier();
+            const spawnInterval = obstaculoBaseInterval / difficulty;
+            nextSpawnTime = gameTime + spawnInterval * (0.9 + Math.random() * 0.3);
+            const choice = Math.floor(Math.random() * 6) + 1;
+            spawnPattern(choice);
+        }
+
+        // --- PATRONES DE OBSTÁCULOS DEL EDITOR ---
+        function spawnPattern(type) {
+            const cx = canvas.width + obstaculoBaseSize * 2; // posición inicial fuera de la pantalla
+            const cy = centerY();
+            const s = obstaculoBaseSize;
+            const gap = s * 2.2;
+
+            switch(type) {
+                case 1: // obs1
+                    obstaculos.push({x:cx, y:cy, size:s*0.7});
+                    break;
+                case 2: // obs2
+                    obstaculos.push({x:cx, y:cy, size:s*1.6});
+                    break;
+                case 3: // obs3
+                    obstaculos.push({x:cx, y:cy-1.5*gap, size:s*0.7});
+                    obstaculos.push({x:cx, y:cy+1.5*gap, size:s*0.7});
+                    break;
+                case 4: // obs4
+                    obstaculos.push({x:cx-2*gap, y:cy-1.4*gap, size:s*0.7});
+                    obstaculos.push({x:cx-2*gap, y:cy+1.4*gap, size:s*0.7});
+                    obstaculos.push({x:cx, y:cy, size:s*0.7});
+                    obstaculos.push({x:cx+2*gap, y:cy+1.4*gap, size:s*0.7});
+                    obstaculos.push({x:cx+2*gap, y:cy-1.4*gap, size:s*0.7});
+                    break;
+                case 5: // obs5
+                    obstaculos.push({x:cx, y:cy-1.1*gap, size:s*0.7});
+                    obstaculos.push({x:cx-2*gap, y:cy, size:s*0.7});
+                    obstaculos.push({x:cx, y:cy+1.1*gap, size:s*0.7});
+                    obstaculos.push({x:cx+2*gap, y:cy, size:s*0.7});
+                    break;
+                case 6: // obs6
+                    obstaculos.push({x:cx-3.8*gap, y:cy, size:s*0.7});
+                    obstaculos.push({x:cx-2*gap, y:cy, size:s*1.6});
+                    obstaculos.push({x:cx-3*gap, y:cy, size:s*1.0});
+                    obstaculos.push({x:cx, y:cy-1.5*gap, size:s*0.7});
+                    obstaculos.push({x:cx, y:cy+1.5*gap, size:s*0.7});
+                    obstaculos.push({x:cx+3*gap, y:cy, size:s*1.0});
+                    obstaculos.push({x:cx+2*gap, y:cy, size:s*1.6});
+                    obstaculos.push({x:cx+3.8*gap, y:cy, size:s*0.7});
+                    break;
+            }
+        }
+
+
+        function updateObstaculos(deltaTime) {
+            const speed = obstaculoBaseSpeed * getDifficultyMultiplier();
+            obstaculos.forEach(obs => { obs.x -= speed * deltaTime; });
+            obstaculos = obstaculos.filter(obs => obs.x + obs.size / 2 > 0);
+        }
+
+        function drawObstaculos() {
+            ctx.save();
+            const obsColor = getDynamicColor();
+            for (const obs of obstaculos) {
+                ctx.beginPath();
+                ctx.arc(obs.x, obs.y, obs.size / 2, 0, Math.PI * 2);
+                ctx.fillStyle = obsColor;
+                ctx.shadowColor = obsColor;
+                ctx.shadowBlur = 16;
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // --- COLISIÓN ---
+        function checkColision() {
+            const y1 = centerY() - sepActual / 2;
+            const y2 = centerY() + sepActual / 2;
+            for(let x = startX; x <= endX; x += 20) {
+                const { topWallY, bottomWallY } = getWallPositions(x);
+                if ((y1 - serpienteWidth / 2) <= topWallY || (y2 + serpienteWidth / 2) >= bottomWallY) {
+                    return true;
+                }
+            }
+            const p1_top = { x: startX, y: y1 };
+            const p2_top = { x: endX, y: y1 - currentDiagonalOffset * 1 };
+            const p1_bottom = { x: startX, y: y2 };
+            const p2_bottom = { x: endX, y: y2 - currentDiagonalOffset * -1 };
+
+            for (const obs of obstaculos) {
+                if (isThickLineCollidingWithCircle(obs, p1_top, p2_top, serpienteWidth)) return true;
+                if (sepActual > separationMin + 5 && isThickLineCollidingWithCircle(obs, p1_bottom, p2_bottom, serpienteWidth)) return true;
+            }
+            return false;
+        }
+
+        function isThickLineCollidingWithCircle(circle, p1, p2, thickness) {
+            const circleR = circle.size / 2;
+            const lineR = thickness / 2;
+            const lineVec = { x: p2.x - p1.x, y: p2.y - p1.y };
+            const p1ToCircle = { x: circle.x - p1.x, y: circle.y - p1.y };
+            const lineLenSq = lineVec.x * lineVec.x + lineVec.y * lineVec.y;
+            let t = (p1ToCircle.x * lineVec.x + p1ToCircle.y * lineVec.y) / lineLenSq;
+            t = Math.max(0, Math.min(1, t));
+            const closestPoint = { x: p1.x + t * lineVec.x, y: p1.y + t * lineVec.y };
+            const distSq = (circle.x - closestPoint.x)**2 + (circle.y - closestPoint.y)**2;
+            return distSq < (circleR + lineR)**2;
+        }
+
+        // --- LOOP PRINCIPAL ---
+        function gameLoop(currentTime) {
+            if (gameOver) return;
+
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameHasStarted) {
+                gameTime += deltaTime;
+                updateSerpientes(deltaTime);
+                updateObstaculos(deltaTime);
+                if (gameTime > nextSpawnTime) {
+                    scheduleNextObstacle();
+                }
+                puntaje += deltaTime * 10;
+                puntajeDiv.textContent = "Puntaje: " + Math.floor(puntaje);
+            }
+            
+            updateAndDrawWalls();
+            drawSerpientes();
+            drawObstaculos();
+
+            if (gameHasStarted && checkColision()) {
+                gameOver = true;
+                document.body.style.backgroundColor = '#500';
+                setTimeout(() => {
+                    const finalScore = Math.floor(puntaje);
+                    if (modo === "ranked") {
+                        const user = localStorage.getItem('usuario_looper') || '';
+                        guardarRanking(user, finalScore)
+                            .then(resp => {
+                                // resp puede ser "nuevo", "no", "error"
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=${resp === "nuevo" ? 1 : 0}`;
+                            })
+                            .catch(err => {
+                                console.error("Error guardando ranking:", err);
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=0`;
+                            });
+                    } else {
+                        window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}`;
+                    }
+                }, 600);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

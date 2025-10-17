@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looper - Menú</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Librería de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+
+</head>
+<body class="menu-body">
+    <script>
+    // Guarda el usuario en localStorage si viene por parámetro
+    const params = new URLSearchParams(window.location.search);
+    const usuario = params.get('usuario');
+    if (usuario) {
+        localStorage.setItem('usuario_looper', usuario);
+    }
+    </script>
+
+    <div class="menu-container">
+        <!-- Esferas decorativas de fondo -->
+        <div class="floating-spheres">
+            <div class="sphere sphere-0"></div>
+            <div class="sphere sphere-1"></div>
+            <div class="sphere sphere-2"></div>
+            <div class="sphere sphere-3"></div>
+            <div class="sphere sphere-4"></div>
+            <div class="sphere sphere-5"></div>
+            <div class="sphere sphere-6"></div>
+            <div class="sphere sphere-7"></div>
+            <div class="sphere sphere-8"></div>
+            <div class="sphere sphere-9"></div>
+            <div class="sphere sphere-10"></div>
+            <div class="sphere sphere-11"></div>
+            <div class="sphere sphere-12"></div>
+        </div>
+
+        <!-- Panel de Ranking (izquierda) -->
+        <div class="ranking-panel">
+            <div class="ranking-header">RANKING</div>
+            <div class="ranking-list" id="ranking-list">
+                <!-- Aquí se cargan los top 3 desde Supabase -->
+            </div>
+                <p>.</p>
+                <a href="LOOPER_RANKING_FULL.html"><button class="menu-btn1">Ver todos</button></a>
+        </div>
+
+        <!-- Panel Central -->
+        <div class="main-panel">
+            <!-- Título LOOPER -->
+            <div class="game-title">
+                <h1>L
+                    <span class="infinity" style="display:inline-block; width:0.9em; height:0.9em; vertical-align:middle; margin-left:-0.1em; margin-right:-0.1em;">
+                        <svg viewBox="4 1 100 100" width="100%" height="100%">
+                            <path d="M7,45 Q15,0 50,45 Q85,80 90,45 Q85,0 50,45 Q15,80 7,45 Z7, 45" fill="none" stroke="#333" stroke-width="4"/>
+                        </svg>
+                    </span>PER
+                </h1>
+            </div>
+
+            <!-- Panel Bienvenido -->
+            <div class="welcome-panel">
+                <div class="welcome-header">BIENVENIDO</div>
+                <div class="menu-buttons">
+                    <a href="LOOPER_LOGIN.html" class="menu-btn">RANKED</a>
+                    <a href="LOOPER_JUEGO.html?modo=practica" class="menu-btn">PRACTICA</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ranking completo (opcional, si lo usas en el futuro) -->
+    <div id="ranking-modal" class="ranking-modal" style="display:none;">
+        <div class="ranking-modal-content">
+            <span class="close-modal" id="close-modal">&times;</span>
+            <h2>Ranking Completo</h2>
+            <div class="ranking-list" id="ranking-list-full">
+                <!-- Aquí se cargan todos los usuarios desde Supabase si lo activas -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript para cargar rankings -->
+    <script>
+    window.onload = function() {
+
+        // Cargar Top 3
+        async function cargarTop3() {
+            const { data, error } = await client
+                .from('ranking')
+                .select('usuario, ranking')
+                .order('ranking', { ascending: false })
+                .limit(3);
+
+            if (error) {
+                console.error("❌ Error Supabase:", error);
+                document.getElementById('ranking-list').innerHTML = 'Error al cargar ranking';
+                return;
+            }
+
+            console.log("✅ Top 3:", data);
+
+            let html = '';
+            data.forEach((row, i) => {
+                html += `<div class='ranking-item'>
+                        <span class='ranking-pos'>${i+1}</span>
+                        <span class='ranking-user'>${row.usuario}</span>
+                        <span class='ranking-score'>${row.ranking}</span>
+                    </div>`;
+
+            });
+            document.getElementById('ranking-list').innerHTML = html;
+        }
+
+
+
+
+        cargarTop3();
+    };
+    </script>
+</body>
+</html>

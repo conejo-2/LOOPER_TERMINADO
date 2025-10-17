@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looper - Game Over</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="get_record.js"></script>
+</head>
+<body class="modal-body">
+    <div class="modal-overlay">
+        <div class="modal-container gameover-modal">
+            <h2 class="gameover-title">GAME OVER</h2>
+            
+            <div class="score-section">
+                <div class="score-label">TU PUNTAJE ES:</div>
+                <div class="score-value" id="finalScore">0</div>
+                <div id="recordInfo"></div>
+            </div>
+            
+            <div class="modal-buttons single">
+                <button onclick="window.location.href='LOOPER_MENU.html'" class="modal-btn primary full-width">VOLVER AL MENÚ</button>
+                <!-- botón modificado: ahora tiene id y no redirige directo -->
+                <button id="btnVolverJugar" class="modal-btn secondary full-width">VOLVER A JUGAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTA: eliminé la inclusión de guardar_ranking.js y la llamada a guardarRanking desde aquí
+         (el guardado debe ocurrir en LOOPER_JUEGO.html en el gameOver). -->
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const puntaje = params.get('puntaje') || '0';
+        const usuario = params.get('usuario') || '';
+        const nuevo_record = params.get('nuevo_record') === "1";
+
+        document.getElementById('finalScore').textContent = puntaje;
+
+        // Mostrar récord si hay usuario
+        if (usuario) {
+            getRecord(usuario).then(record => {
+                let html = '';
+                if (nuevo_record) {
+                    html += `<div style="color:#0f0;font-size:2em;font-weight:bold;">¡NUEVO RECORD!</div>`;
+                }
+                if (record !== null) {
+                    html += `<div class="score-label">TU ANTERIOR RÉCORD: <span class="score-value">${record}</span></div>`;
+                }
+                document.getElementById('recordInfo').innerHTML = html;
+            });
+        }
+
+        // Botón "VOLVER A JUGAR" — si hay usuario en localStorage (último login),
+        // redirige directo a LOOPER_JUEGO.html en modo ranked y pasando usuario en la URL.
+        // Si no hay usuario, lleva al login.
+        document.getElementById('btnVolverJugar').addEventListener('click', () => {
+            // Prioriza localStorage (último inicio), si no existe usa el param de la URL
+            const lastUser = localStorage.getItem('usuario_looper') || usuario || '';
+            if (lastUser) {
+                // Redirige con modo=ranked y usuario para que LOOPER_JUEGO arranque en ranked y
+                // además guarde el usuario en localStorage otra vez (LOOPER_JUEGO tiene lógica para eso).
+                window.location.href = `LOOPER_JUEGO.html?modo=ranked&usuario=${encodeURIComponent(lastUser)}`;
+            } else {
+                // No hay usuario precargado: llevar a login para que el usuario inicie sesión
+                window.location.href = 'LOOPER_LOGIN.html';
+            }
+        });
+    </script>
+
+</body>
+</html>

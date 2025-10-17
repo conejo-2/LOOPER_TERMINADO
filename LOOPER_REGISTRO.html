@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looper - Registro</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="registro.js"></script>
+</head>
+<body class="modal-body">
+    <div class="modal-overlay">
+        <div class="modal-container register-modal">
+            <button class="modal-close" onclick="window.location.href='LOOPER_MENU.html'">X</button>
+            
+            <h2 class="modal-title">REGISTER</h2>
+            <div id="msg-general" class="mensaje-error"></div>
+            
+            <form id="registroForm" novalidate>
+                <div class="input-group">
+                    <input type="text" name="usuario" id="usuario" placeholder="Usuario:" required>
+                    <div id="msg-usuario" class="mensaje-error"></div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="text" name="confirmar_usuario" id="confirmar_usuario" placeholder="Confirmar Usuario:" required>
+                    <div id="msg-confirmar-usuario" class="mensaje-error"></div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" name="contrasena" id="contrasena" placeholder="Contraseña:" required>
+                    <span class="toggle-password" id="toggleContrasena">👁️</span>
+                    <div id="msg-contrasena" class="mensaje-error"></div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" name="confirmar_contrasena" id="confirmar_contrasena" placeholder="Confirmar Contraseña:" required>
+                    <span class="toggle-password" id="toggleConfirmarContrasena">👁️</span>
+                    <div id="msg-confirmar-contrasena" class="mensaje-error"></div>
+                </div>
+                
+                <div class="modal-buttons single">
+                    <button type="submit" class="modal-btn primary full-width">Registrarse</button>
+                </div>
+            </form>
+            
+            <div class="register-links">
+                <p>¿Ya tienes cuenta? <a href="LOOPER_LOGIN.html">Inicia Sesión</a></p>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Toggle contraseñas en REGISTRO
+        function togglePassword(inputId, toggleId) {
+            const input = document.getElementById(inputId);
+            const toggle = document.getElementById(toggleId);
+
+            toggle.addEventListener('click', () => {
+                const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                input.setAttribute('type', type);
+                toggle.textContent = type === 'password' ? '👁️' : '🙈';
+            });
+        }
+
+        togglePassword('contrasena', 'toggleContrasena');
+        togglePassword('confirmar_contrasena', 'toggleConfirmarContrasena');
+    </script>
+    <script>
+        // Mensajes por GET
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('error')) {
+            document.getElementById('msg-general').textContent = params.get('error');
+        }
+        if (params.has('success')) {
+            document.getElementById('msg-general').textContent = params.get('success');
+            document.getElementById('msg-general').className = 'mensaje-exito';
+        }
+
+        // Registro con Supabase
+        document.getElementById('registroForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.mensaje-error').forEach(el => el.textContent = '');
+
+            const usuario = document.getElementById('usuario').value.trim();
+            const confirmar_usuario = document.getElementById('confirmar_usuario').value.trim();
+            const contrasena = document.getElementById('contrasena').value;
+            const confirmar_contrasena = document.getElementById('confirmar_contrasena').value;
+
+            let error = false;
+            if (!usuario) {
+                document.getElementById('msg-usuario').textContent = 'El usuario es obligatorio.';
+                error = true;
+            }
+            if (usuario !== confirmar_usuario) {
+                document.getElementById('msg-confirmar-usuario').textContent = 'Los usuarios no coinciden.';
+                error = true;
+            }
+            if (contrasena.length < 6) {
+                document.getElementById('msg-contrasena').textContent = 'La contraseña debe tener al menos 6 caracteres.';
+                error = true;
+            }
+            if (contrasena !== confirmar_contrasena) {
+                document.getElementById('msg-confirmar-contrasena').textContent = 'Las contraseñas no coinciden.';
+                error = true;
+            }
+            if (error) return;
+
+            const errorMsg = await registro(usuario, contrasena);
+            if (errorMsg) {
+                document.getElementById('msg-general').textContent = "Error: " + errorMsg;
+            }
+        });
+    </script>
+</body>
+</html>

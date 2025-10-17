@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looper - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+    <script src="login.js"></script>
+</head>
+<body class="modal-body">
+    <div class="modal-overlay">
+        <div class="modal-container">
+            <button class="modal-close" onclick="window.location.href='LOOPER_MENU.html'">X</button>
+            
+            <h2 class="modal-title">LOGIN</h2>
+            <div id="msg-general" class="mensaje-error"></div>
+            
+            <form id="loginForm" novalidate>
+                <div class="input-group">
+                    <input type="text" name="usuario" id="login_usuario" placeholder="Usuario" required>
+                    <div id="msg-login-usuario" class="mensaje-error"></div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" name="contrasena" id="login_contrasena" placeholder="Contraseña" required>
+                    <span class="toggle-password" id="toggleLoginPassword">👁️</span>
+                    <div id="msg-login-contrasena" class="mensaje-error"></div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" onclick="window.location.href='LOOPER_REGISTRO.html'" class="modal-btn secondary">Registrarse</button>
+                    <button type="submit" class="modal-btn primary">Ingresar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Mensajes por GET
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('error')) {
+            document.getElementById('msg-general').textContent = params.get('error');
+        }
+        if (params.has('success')) {
+            document.getElementById('msg-general').textContent = params.get('success');
+            document.getElementById('msg-general').className = 'mensaje-exito';
+        }
+
+        // Login con Supabase
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.mensaje-error').forEach(el => el.textContent = '');
+
+            const usuario = document.getElementById('login_usuario').value.trim();
+            const contrasena = document.getElementById('login_contrasena').value;
+
+            let error = false;
+            if (!usuario) {
+                document.getElementById('msg-login-usuario').textContent = 'El usuario es obligatorio.';
+                error = true;
+            }
+            if (!contrasena) {
+                document.getElementById('msg-login-contrasena').textContent = 'La contraseña es obligatoria.';
+                error = true;
+            }
+            if (error) return;
+
+            const errorMsg = await login(usuario, contrasena);
+            if (errorMsg) {
+                document.getElementById('msg-general').textContent = "Error: " + errorMsg;
+            }
+        });
+
+        // Toggle contraseña en LOGIN
+        const loginPasswordInput = document.getElementById('login_contrasena');
+        const toggleLoginPassword = document.getElementById('toggleLoginPassword');
+
+        toggleLoginPassword.addEventListener('click', () => {
+            const type = loginPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            loginPasswordInput.setAttribute('type', type);
+            toggleLoginPassword.textContent = type === 'password' ? '👁️' : '🙈';
+        });
+    </script>
+</body>
+</html>

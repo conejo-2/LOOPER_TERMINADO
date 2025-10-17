@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ranking Completo - Looper</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+    <script src="supabaseClient.js"></script>
+
+</head>
+<body>
+  <div class="ranking-wrapper">
+    <div class="ranking-container">
+      <h1>RANKING COMPLETO</h1>
+      
+      <div class="ranking-table-wrapper">
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th>Posición</th>
+              <th>Jugador</th>
+              <th>Puntaje</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body">
+            <!-- Aquí se insertarán los datos con JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <a href="LOOPER_MENU.html"><button class="menu-btn1">Volver al menú</button></a>
+    </div>
+  </div>
+
+  <script>
+    // 🔹 Conexión a Supabase
+    const SUPABASE_URL = "https://ovfvlnyjonjptmatzxbz.supabase.co";  
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92ZnZsbnlqb25qcHRtYXR6eGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2MjY3MzksImV4cCI6MjA3MTIwMjczOX0.8zBRh5Qh2GujIf4aBGLc8PX3SLJn9YgSyr372SpuGDk";  
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function cargarRanking() {
+        const { data, error } = await client
+            .from("ranking")
+            .select("usuario, ranking")
+            .order("ranking", { ascending: false });
+
+        if (error) {
+            console.error("❌ Error Supabase:", error);
+            document.getElementById("ranking-body").innerHTML =
+            "<tr><td colspan='3'>Error al cargar ranking.</td></tr>";
+            return;
+        }
+
+        let html = "";
+        data.forEach((jugador, i) => {
+            html += `
+            <tr>
+                <td>Top ${i + 1}</td>
+                <td>${jugador.usuario}</td>
+                <td>${jugador.ranking}</td>
+            </tr>
+            `;
+        });
+
+        document.getElementById("ranking-body").innerHTML = html;
+    }
+
+    cargarRanking();
+  </script>
+</body>
+
+</html>
