@@ -1,14 +1,17 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "chrome",
-            "request": "launch",
-            "name": "Open LOOPER_MENU.html",
-            "file": "c:\\Users\\Santino\\Desktop\\LOOPER3\\LOOPER_MENU.html"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Looper (HTTP + Browser)",
+      "type": "chrome",
+      "request": "launch",
+  "url": "http://localhost:8000/LOOPER_MENU.html",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Run Simple HTTP Server",
+      "runtimeArgs": [
+        "--new-window",
+        "--disable-extensions"
+      ]
+    }
+  ]
 }

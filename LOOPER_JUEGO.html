@@ -59,6 +59,46 @@
         .menu-button:hover {
             background-color: rgba(255, 255, 255, 0.3);
         }
+        /* Tutorial overlays */
+        .tutorial-overlay-backdrop {
+            position: fixed;
+            left: 0; top: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .tutorial-box {
+            background: #f5f5f5;
+            color: #111;
+            padding: 18px;
+            border-radius: 12px;
+            width: min(640px, 90%);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            text-align: center;
+        }
+        .tutorial-box h3 {
+            margin: 0 0 8px 0;
+        }
+        .tutorial-demo {
+            margin-top: 12px;
+            width: 320px;
+            height: 120px;
+            background: #000;
+            display: inline-block;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .tutorial-cta {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: #222;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-block;
+        }
     </style>
     <script>
         const usuario = new URLSearchParams(window.location.search).get('usuario');
@@ -85,6 +125,12 @@
         // --- MODO ---
         const params = new URLSearchParams(window.location.search);
         const modo = params.get('modo') || 'practica';
+
+    // Tutorial state
+    const tutorialMode = modo === 'tutorial';
+    let tutorialPaused = false; // when true, game progression (time, obstacles) is paused
+    let tutorialStage = 0; // 0 = intro pending, 1 = playing after intro, 2 = obstacle hint pending, 3 = playing after hint
+    let tutorialFirstObstacleShown = false;
 
         // --- CONFIGURACIÓN ---
         const gameArea = document.getElementById('gameArea');
@@ -131,13 +177,20 @@
 
         // --- CONTROLES ---
         function startGameOnce() {
+            // If tutorial mode and still in intro stage (not even confirmed), don't start progression
+            if (tutorialMode && tutorialStage === 0) return;
+            // If in tutorial and intro was confirmed (stage 1), unpause progression on the first real interaction
+            if (tutorialMode && tutorialStage === 1) {
+                tutorialPaused = false; // allow game to progress
+                // keep tutorialStage as 1 (playing after intro)
+            }
             if (!gameHasStarted) {
                 gameHasStarted = true;
                 lastTime = performance.now();
             }
         }
 
-        gameArea.addEventListener('mousedown', () => { startGameOnce(); isClosing = true; });
+    gameArea.addEventListener('mousedown', () => { startGameOnce(); isClosing = true; });
         gameArea.addEventListener('touchstart', e => { startGameOnce(); isClosing = true; e.preventDefault(); });
         gameArea.addEventListener('mouseup', () => isClosing = false);
         gameArea.addEventListener('mouseleave', () => isClosing = false);
@@ -299,7 +352,18 @@
             const spawnInterval = obstaculoBaseInterval / difficulty;
             nextSpawnTime = gameTime + spawnInterval * (0.9 + Math.random() * 0.3);
             const choice = Math.floor(Math.random() * 6) + 1;
-            spawnPattern(choice);
+            // If in tutorial and this is the first real spawn, schedule and then show obstacle hint overlay
+            if (tutorialMode && !tutorialFirstObstacleShown) {
+                tutorialFirstObstacleShown = true;
+                // spawn the obstacle so it appears, but pause the game progression so it freezes on screen
+                spawnPattern(choice);
+                // Pause progression and show obstacle hint overlay
+                tutorialPaused = true;
+                tutorialStage = 2;
+                showTutorialOverlay('Maneje la abertura de las serpientes para esquivar los obstáculos', true);
+            } else {
+                spawnPattern(choice);
+            }
         }
 
         // --- PATRONES DE OBSTÁCULOS DEL EDITOR ---
@@ -402,7 +466,280 @@
             return distSq < (circleR + lineR)**2;
         }
 
-        // --- LOOP PRINCIPAL ---
+        // --- Tutorial helpers ---
+        function showTutorialOverlay(text, withDemo) {
+            const backdrop = document.getElementById('tutorial-backdrop');
+            const title = document.getElementById('tutorial-title');
+            const demoCanvas = document.getElementById('tutorial-demo-canvas');
+            title.textContent = text;
+            backdrop.style.display = 'flex';
+            if (withDemo) {
+                demoCanvas.style.display = 'block';
+                startDemoAnimation(demoCanvas, text);
+            } else {
+                demoCanvas.style.display = 'none';
+            }
+            // One-time handlers: click on backdrop or CTA will hide overlay and, if it's the obstacle hint,
+            // resume the tutorial gameplay.
+            const cta = document.getElementById('tutorial-cta');
+            function onCloseTutorialOverlay(e) {
+                e && e.stopPropagation && e.stopPropagation();
+                hideTutorialOverlay();
+                // If we were paused for the obstacle hint, resume
+                if (tutorialMode && tutorialStage === 2) {
+                    tutorialPaused = false;
+                    tutorialStage = 3;
+                }
+                backdrop.removeEventListener('click', onCloseTutorialOverlay);
+                cta.removeEventListener('click', onCloseTutorialOverlay);
+            }
+            backdrop.addEventListener('click', onCloseTutorialOverlay);
+            cta.addEventListener('click', onCloseTutorialOverlay);
+        }
+
+        function hideTutorialOverlay() {
+            const backdrop = document.getElementById('tutorial-backdrop');
+            const demoCanvas = document.getElementById('tutorial-demo-canvas');
+            backdrop.style.display = 'none';
+            stopDemoAnimation();
+        }
+
+        // Improved demo animation: draw simplified game-like serpientes and moving obstacles
+        let demoReq = null;
+        let demoState = { t:0, mode:'intro' };
+        function startDemoAnimation(canvasEl, modeText) {
+            const ctxd = canvasEl.getContext('2d');
+            // demo-local state that mirrors main game variables so the demo looks identical
+            let demoGameTime = 0;
+            let demoLast = performance.now();
+            let demoSepActual = separationMin;
+            let demoSepObjetivo = separationMin;
+            let demoIsClosing = false;
+            let demoTargetDiagonalOffset = 0;
+            let demoCurrentDiagonalOffset = 0;
+            demoState.t = 0;
+            demoState.mode = modeText.toLowerCase().includes('abrir') ? 'open' : 'obstacle';
+
+            // helper: update demo serpientes using same math as updateSerpientes()
+            function updateDemoSerpientes(dt) {
+                const maxOpeningSpeed = 500 * dt;
+                const maxClosingSpeed = 700 * dt;
+                if (demoIsClosing) {
+                    demoSepObjetivo -= maxClosingSpeed;
+                } else {
+                    demoSepObjetivo += maxOpeningSpeed;
+                }
+                demoSepObjetivo = Math.max(separationMin, demoSepObjetivo);
+                const lerpFactor = 8;
+                const previousSep = demoSepActual;
+                demoSepActual += (demoSepObjetivo - demoSepActual) * lerpFactor * dt;
+                const movementSpeed = demoSepActual - previousSep;
+                demoTargetDiagonalOffset = movementSpeed * 2.5;
+                demoTargetDiagonalOffset = Math.max(-20, Math.min(demoTargetDiagonalOffset, 20));
+                const smoothingFactor = 12 * dt;
+                demoCurrentDiagonalOffset += (demoTargetDiagonalOffset - demoCurrentDiagonalOffset) * smoothingFactor;
+            }
+
+            function drawDemoSerpientes(w, h) {
+                const demoCtx = ctxd;
+                demoCtx.save();
+                // compute demo start/end using serpienteLength scaled to demo box
+                const demoStartX = Math.floor(w * 0.12);
+                const demoEndX = demoStartX + Math.max(20, Math.round(serpienteLength));
+
+                const drawDiagonalSerpent = (y, color, shadowColor, direction) => {
+                    demoCtx.beginPath();
+                    const startPointY = y;
+                    const endPointY = y - demoCurrentDiagonalOffset * direction;
+                    demoCtx.moveTo(demoStartX, startPointY);
+                    demoCtx.lineTo(demoEndX, endPointY);
+                    demoCtx.strokeStyle = color;
+                    demoCtx.lineWidth = serpienteWidth;
+                    demoCtx.shadowColor = shadowColor;
+                    demoCtx.shadowBlur = 12;
+                    demoCtx.lineCap = 'round';
+                    demoCtx.stroke();
+                };
+
+                const drawSpiral = () => {
+                    const rollTime = demoGameTime * 15;
+                    const rollSin = Math.sin(rollTime);
+                    const spiralFreq = 0.08;
+                    const spiralAmp = serpienteWidth * 0.35;
+                    const frontWidth = serpienteWidth * 0.7;
+                    const backWidth = serpienteWidth * 0.55;
+                    const drawSpiralWave = (phase, color, width) => {
+                        demoCtx.beginPath();
+                        demoCtx.moveTo(demoStartX, h/2 + Math.sin(demoStartX * spiralFreq + rollTime + phase) * spiralAmp);
+                        for (let x = demoStartX + 4; x <= demoEndX; x += 4) {
+                            demoCtx.lineTo(x, h/2 + Math.sin(x * spiralFreq + rollTime + phase) * spiralAmp);
+                        }
+                        demoCtx.strokeStyle = color;
+                        demoCtx.lineWidth = width;
+                        demoCtx.shadowColor = color;
+                        demoCtx.shadowBlur = 10;
+                        demoCtx.lineCap = 'round';
+                        demoCtx.stroke();
+                    };
+                    if (rollSin > 0) {
+                        drawSpiralWave(Math.PI, '#00eaff', backWidth);
+                        drawSpiralWave(0, '#ff00c8', frontWidth);
+                    } else {
+                        drawSpiralWave(0, '#ff00c8', backWidth);
+                        drawSpiralWave(Math.PI, '#00eaff', frontWidth);
+                    }
+                };
+
+                const transitionStart = separationMin;
+                const transitionEnd = separationMin + 40;
+
+                if (demoSepActual <= transitionStart) {
+                    drawSpiral();
+                } else if (demoSepActual > transitionStart && demoSepActual < transitionEnd) {
+                    const progress = (demoSepActual - transitionStart) / (transitionEnd - transitionStart);
+                    demoCtx.globalAlpha = 1 - progress;
+                    drawSpiral();
+                    demoCtx.globalAlpha = progress;
+                    drawDiagonalSerpent(h/2 - demoSepActual / 2, '#00eaff', '#00eaff', 1);
+                    drawDiagonalSerpent(h/2 + demoSepActual / 2, '#ff00c8', '#ff00c8', -1);
+                } else {
+                    demoCtx.globalAlpha = 1;
+                    drawDiagonalSerpent(h/2 - demoSepActual / 2, '#00eaff', '#00eaff', 1);
+                    drawDiagonalSerpent(h/2 + demoSepActual / 2, '#ff00c8', '#ff00c8', -1);
+                }
+
+                demoCtx.restore();
+            }
+
+            // prepare demo obstacles sequence for obstacle mode
+            const demoObstacles = [];
+            const demoSpacing = 180; // px between obstacles
+            const demoSpeed = 220; // px/s
+            function initDemoObstacles(cw) {
+                demoObstacles.length = 0;
+                // If intro/open mode: don't spawn visible obstacles; just keep demo serpientes separated
+                if (demoState.mode === 'open') {
+                    return;
+                }
+                // obstacle mode: create an explicit alternating pattern (1,0,1,0...) so obstacles appear every other slot
+                const slots = 10; // total slots positions along the x-axis
+                const baseX = cw + 60;
+                for (let i = 0; i < slots; i++) {
+                    // only create actual obstacles for even indices to keep 1-0-1-0 pattern
+                    if (i % 2 === 0) {
+                        const startPos = baseX + i * demoSpacing;
+                        demoObstacles.push({ x: startPos, size: Math.max(10, Math.round(obstaculoBaseSize * 0.35)) });
+                    } else {
+                        // keep placeholders (null) to preserve spacing logic if needed
+                    }
+                }
+            }
+
+            // demo loop
+            function step() {
+                const now = performance.now();
+                const dt = Math.min(0.05, (now - demoLast) / 1000);
+                demoLast = now;
+                demoGameTime += dt;
+                demoState.t += dt;
+
+                const dpr = window.devicePixelRatio || 1;
+                const cw = canvasEl.clientWidth;
+                const ch = canvasEl.clientHeight;
+                canvasEl.width = Math.max(1, Math.floor(cw * dpr));
+                canvasEl.height = Math.max(1, Math.floor(ch * dpr));
+                ctxd.setTransform(dpr,0,0,dpr,0,0);
+                ctxd.clearRect(0,0,cw,ch);
+                ctxd.fillStyle = '#0f0f0f';
+                ctxd.fillRect(0,0,cw,ch);
+
+                // Initialize obstacles array if empty (for obstacle mode)
+                if (demoObstacles.length === 0) initDemoObstacles(cw);
+
+                // Move obstacles (only relevant in obstacle mode)
+                if (demoState.mode === 'obstacle') {
+                    for (const obs of demoObstacles) {
+                        obs.x -= demoSpeed * dt;
+                    }
+                }
+                // recycle obstacles that moved off-left, preserving alternating spacing/order
+                if (demoObstacles.length > 0) {
+                    for (let i = 0; i < demoObstacles.length; i++) {
+                        if (demoObstacles[i].x < -80) {
+                            // find current maxX and place this obstacle after it keeping demoSpacing
+                            const maxX = Math.max(...demoObstacles.map(o => o.x));
+                            demoObstacles[i].x = maxX + demoSpacing;
+                        }
+                    }
+                }
+
+                // Determine proximity to the next obstacle relative to demo center area
+                const demoCenterX = cw * 0.55; // position where player is visually
+                // find the first obstacle to the right of center
+                let nextObs = null;
+                let minDist = Infinity;
+                for (const obs of demoObstacles) {
+                    const dist = obs.x - demoCenterX;
+                    if (dist >= -200 && dist < minDist) { minDist = dist; nextObs = obs; }
+                }
+
+                // If in obstacle mode, control open/close based on proximity to next obstacle
+                if (demoState.mode === 'obstacle' && nextObs) {
+                    const closeThreshold = 110; // px before center to start closing
+                    const reopenThreshold = -30; // px after passing center to reopen
+                    if (minDist <= closeThreshold && minDist >= reopenThreshold) {
+                        demoIsClosing = true;
+                    } else if (minDist < reopenThreshold) {
+                        demoIsClosing = false;
+                    } else {
+                        // gaps between obstacles: keep opened state
+                        demoIsClosing = false;
+                    }
+                    // set desired sep depending on obstacle size — increase multiplier so demo opens more
+                    const desiredOpen = separationMin + (nextObs.size * 3.2); // larger gap relative to obstacle
+                    // when closing, go to separationMin (full close) to show the closing animation
+                    demoSepObjetivo = demoIsClosing ? separationMin : desiredOpen;
+                } else {
+                    // intro/open mode: no obstacles and keep snake more separated but ensure full close animation
+                    if (demoState.mode === 'open') {
+                        // force a larger opening to visualize separation (no obstacles present)
+                        demoSepObjetivo = separationMin + 48; // even more open for clarity
+                        // create a clear close cycle so that when demoIsClosing is true it reaches full close
+                        demoIsClosing = Math.sin(demoState.t * 3.5) > 0.6;
+                        if (demoIsClosing) {
+                            // when closing, ensure the objetivo goes to separationMin so lerp will reach it
+                            demoSepObjetivo = separationMin;
+                        }
+                    } else {
+                        demoIsClosing = Math.sin(demoState.t * 3.0) > 0.3;
+                        demoSepObjetivo = demoIsClosing ? separationMin : separationMin + 18;
+                    }
+                }
+
+                // Update serpientes after setting objetivo
+                updateDemoSerpientes(dt);
+
+                // draw demo serpientes using same logic
+                drawDemoSerpientes(cw, ch);
+
+                // draw obstacles
+                for (const obs of demoObstacles) {
+                    if (obs.x > -80 && obs.x < cw + 80) {
+                        ctxd.beginPath(); ctxd.fillStyle = '#ffffff'; ctxd.shadowColor = '#ffffff'; ctxd.shadowBlur = 8;
+                        ctxd.arc(obs.x, ch/2, obs.size, 0, Math.PI*2); ctxd.fill();
+                    }
+                }
+
+                demoReq = requestAnimationFrame(step);
+            }
+
+            stopDemoAnimation();
+            demoLast = performance.now();
+            demoReq = requestAnimationFrame(step);
+        }
+        function stopDemoAnimation() { if (demoReq) { cancelAnimationFrame(demoReq); demoReq = null; } }
+
+        // --- LOOP PRINCIPAL (tutorial-aware) ---
         function gameLoop(currentTime) {
             if (gameOver) return;
 
@@ -411,7 +748,7 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (gameHasStarted) {
+            if (!tutorialPaused && gameHasStarted) {
                 gameTime += deltaTime;
                 updateSerpientes(deltaTime);
                 updateObstaculos(deltaTime);
@@ -420,8 +757,11 @@
                 }
                 puntaje += deltaTime * 10;
                 puntajeDiv.textContent = "Puntaje: " + Math.floor(puntaje);
+            } else if (gameHasStarted) {
+                // still draw serpientes without advancing
+                updateSerpientes(0);
             }
-            
+
             updateAndDrawWalls();
             drawSerpientes();
             drawObstaculos();
@@ -431,19 +771,20 @@
                 document.body.style.backgroundColor = '#500';
                 setTimeout(() => {
                     const finalScore = Math.floor(puntaje);
+                    const tutorialParam = tutorialMode ? '&tutorial=1' : '';
                     if (modo === "ranked") {
                         const user = localStorage.getItem('usuario_looper') || '';
                         guardarRanking(user, finalScore)
                             .then(resp => {
                                 // resp puede ser "nuevo", "no", "error"
-                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=${resp === "nuevo" ? 1 : 0}`;
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=${resp === "nuevo" ? 1 : 0}${tutorialParam}`;
                             })
                             .catch(err => {
                                 console.error("Error guardando ranking:", err);
-                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=0`;
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=0${tutorialParam}`;
                             });
                     } else {
-                        window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}`;
+                        window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}${tutorialParam}`;
                     }
                 }, 600);
             }
@@ -451,7 +792,49 @@
             requestAnimationFrame(gameLoop);
         }
 
+        // start main loop and initialize tutorial UI if needed
         requestAnimationFrame(gameLoop);
+
+        // Initialize tutorial overlay after functions exist
+        (function initTutorial() {
+            if (!tutorialMode) return;
+            tutorialPaused = true;
+            tutorialStage = 0;
+            // wait a tick to ensure DOM elements exist
+            setTimeout(() => {
+                showTutorialOverlay('Presione Click izq. o Espacio para abrir y comenzar el juego', true);
+                // CTA: listen for click on backdrop to confirm the tutorial intro.
+                // IMPORTANT: do not start game progression automatically here — keep the game paused
+                // after the intro overlay so the user must explicitly press/click inside the game area
+                // (or press Space) to begin (same behavior as normal game start).
+                const backdrop = document.getElementById('tutorial-backdrop');
+                const cta = document.getElementById('tutorial-cta');
+                function onConfirmIntro() {
+                    hideTutorialOverlay();
+                    // Keep progression paused but mark intro as confirmed (stage = 1).
+                    // The next user interaction inside the game area will call startGameOnce()
+                    // which will unpause and start the game.
+                    tutorialPaused = true;
+                    tutorialStage = 1; // intro confirmed, awaiting user's real input to start
+                    backdrop.removeEventListener('click', onConfirmIntro);
+                    cta.removeEventListener('click', onConfirmIntro);
+                }
+                backdrop.addEventListener('click', onConfirmIntro);
+                cta.addEventListener('click', onConfirmIntro);
+            }, 200);
+        })();
     </script>
+
+    <!-- Tutorial overlay markup -->
+    <div id="tutorial-backdrop" class="tutorial-overlay-backdrop">
+        <div class="tutorial-box">
+            <h3 id="tutorial-title">Tutorial</h3>
+            <div class="tutorial-demo">
+                <canvas id="tutorial-demo-canvas" style="width:100%;height:100%;display:block;"></canvas>
+            </div>
+            <div id="tutorial-cta" class="tutorial-cta">Continuar</div>
+        </div>
+    </div>
+
 </body>
 </html>
