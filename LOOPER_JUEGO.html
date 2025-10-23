@@ -229,8 +229,45 @@
             currentDiagonalOffset += (targetDiagonalOffset - currentDiagonalOffset) * smoothingFactor;
         }
 
+        // Colores de serpientes desde localStorage o por defecto
+        const defaultColors = {
+            1: '#FF0000',  // Rojo por defecto serpiente 1
+            2: '#0000FF'   // Azul por defecto serpiente 2
+        };
+
+        function getSnakeColors() {
+            const savedColors = localStorage.getItem('snake_colors');
+            if (!savedColors) return { 1: defaultColors[1], 2: defaultColors[2] };
+            
+            const colorIndices = JSON.parse(savedColors);
+            const availableColors = [
+                '#FF0000', // rojo
+                '#0000FF', // azul
+                '#FFFF00', // amarillo
+                '#00FF00', // verde
+                '#800080', // violeta
+                '#00FFFF', // celeste
+                '#FFFFFF', // blanco
+                '#808080', // gris
+                '#FFA500', // naranja
+                '#FF69B4', // rosa
+                '#40E0D0', // turquesa
+                '#006400'  // verde oscuro
+            ];
+            const snakeColors = {
+                1: availableColors,
+                2: availableColors
+            };
+            
+            return {
+                1: snakeColors[1][colorIndices[1]] || defaultColors[1],
+                2: snakeColors[2][colorIndices[2]] || defaultColors[2]
+            };
+        }
+
         function drawSerpientes() {
             ctx.save();
+            const colors = getSnakeColors();
             
             const drawDiagonalSerpent = (y, color, shadowColor, direction) => {
                 ctx.beginPath();
@@ -269,12 +306,13 @@
                     ctx.stroke();
                 };
 
+                const colors = getSnakeColors();
                 if (rollSin > 0) {
-                    drawSpiralWave(Math.PI, "#00eaff", backWidth);
-                    drawSpiralWave(0, "#ff00c8", frontWidth);
+                    drawSpiralWave(Math.PI, colors[2], backWidth);
+                    drawSpiralWave(0, colors[1], frontWidth);
                 } else {
-                    drawSpiralWave(0, "#ff00c8", backWidth);
-                    drawSpiralWave(Math.PI, "#00eaff", frontWidth);
+                    drawSpiralWave(0, colors[1], backWidth);
+                    drawSpiralWave(Math.PI, colors[2], frontWidth);
                 }
             };
             
@@ -288,12 +326,12 @@
                 ctx.globalAlpha = 1 - progress;
                 drawSpiral();
                 ctx.globalAlpha = progress;
-                drawDiagonalSerpent(centerY() - sepActual / 2, "#00eaff", "#00eaff", 1);
-                drawDiagonalSerpent(centerY() + sepActual / 2, "#ff00c8", "#ff00c8", -1);
+                drawDiagonalSerpent(centerY() - sepActual / 2, colors[1], colors[1], 1);
+                drawDiagonalSerpent(centerY() + sepActual / 2, colors[2], colors[2], -1);
             } else {
                 ctx.globalAlpha = 1;
-                drawDiagonalSerpent(centerY() - sepActual / 2, "#00eaff", "#00eaff", 1);
-                drawDiagonalSerpent(centerY() + sepActual / 2, "#ff00c8", "#ff00c8", -1);
+                drawDiagonalSerpent(centerY() - sepActual / 2, colors[1], colors[1], 1);
+                drawDiagonalSerpent(centerY() + sepActual / 2, colors[2], colors[2], -1);
             }
             
             ctx.restore();
@@ -593,19 +631,20 @@
                 const transitionStart = separationMin;
                 const transitionEnd = separationMin + 40;
 
-                if (demoSepActual <= transitionStart) {
+                const colors = getSnakeColors();
+            if (demoSepActual <= transitionStart) {
                     drawSpiral();
                 } else if (demoSepActual > transitionStart && demoSepActual < transitionEnd) {
                     const progress = (demoSepActual - transitionStart) / (transitionEnd - transitionStart);
                     demoCtx.globalAlpha = 1 - progress;
                     drawSpiral();
                     demoCtx.globalAlpha = progress;
-                    drawDiagonalSerpent(h/2 - demoSepActual / 2, '#00eaff', '#00eaff', 1);
-                    drawDiagonalSerpent(h/2 + demoSepActual / 2, '#ff00c8', '#ff00c8', -1);
+                    drawDiagonalSerpent(h/2 - demoSepActual / 2, colors[1], colors[1], 1);
+                    drawDiagonalSerpent(h/2 + demoSepActual / 2, colors[2], colors[2], -1);
                 } else {
                     demoCtx.globalAlpha = 1;
-                    drawDiagonalSerpent(h/2 - demoSepActual / 2, '#00eaff', '#00eaff', 1);
-                    drawDiagonalSerpent(h/2 + demoSepActual / 2, '#ff00c8', '#ff00c8', -1);
+                    drawDiagonalSerpent(h/2 - demoSepActual / 2, colors[1], colors[1], 1);
+                    drawDiagonalSerpent(h/2 + demoSepActual / 2, colors[2], colors[2], -1);
                 }
 
                 demoCtx.restore();
@@ -838,3 +877,4 @@
 
 </body>
 </html>
+        }

@@ -48,6 +48,31 @@
                 <a href="LOOPER_RANKING_FULL.html"><button class="menu-btn1">Ver todos</button></a>
         </div>
 
+        <!-- Panel de Selector de Colores (derecha) -->
+        <div class="color-picker-panel">
+            <div class="color-picker-header">COLORES</div>
+            <div class="snake-colors">
+                <!-- Serpiente 1 -->
+                <div class="snake-color-picker">
+                    <span class="snake-label">Serpiente 1</span>
+                    <div class="color-selector">
+                        <button class="arrow-btn prev-color" data-snake="1">◄</button>
+                        <div class="color-preview snake1-preview"></div>
+                        <button class="arrow-btn next-color" data-snake="1">►</button>
+                    </div>
+                </div>
+                <!-- Serpiente 2 -->
+                <div class="snake-color-picker">
+                    <span class="snake-label">Serpiente 2</span>
+                    <div class="color-selector">
+                        <button class="arrow-btn prev-color" data-snake="2">◄</button>
+                        <div class="color-preview snake2-preview"></div>
+                        <button class="arrow-btn next-color" data-snake="2">►</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Panel Central -->
         <div class="main-panel">
             <!-- Título LOOPER -->
@@ -121,6 +146,82 @@
 
         cargarTop3();
     };
+    </script>
+
+    <!-- JavaScript para el selector de colores -->
+    <script>
+        // Paleta de 12 colores disponible para ambas serpientes
+        const availableColors = [
+            '#FF0000', // rojo
+            '#0000FF', // azul
+            '#FFFF00', // amarillo
+            '#00FF00', // verde
+            '#800080', // violeta
+            '#00FFFF', // celeste
+            '#FFFFFF', // blanco
+            '#808080', // gris
+            '#FFA500', // naranja
+            '#FF69B4', // rosa
+            '#40E0D0', // turquesa
+            '#006400'  // verde oscuro
+        ];
+        // Usar la misma paleta para ambas serpientes
+        const snakeColors = {
+            1: availableColors,
+            2: availableColors
+        };
+
+        // Estado actual de los colores
+        let currentColorIndex = {
+            1: 0,  // Índice del color actual serpiente 1
+            2: 0   // Índice del color actual serpiente 2
+        };
+
+        // Cargar colores guardados
+        function loadSavedColors() {
+            const savedColors = localStorage.getItem('snake_colors');
+            if (savedColors) {
+                currentColorIndex = JSON.parse(savedColors);
+                updateColorPreviews();
+            }
+        }
+
+        // Guardar colores seleccionados
+        function saveColors() {
+            localStorage.setItem('snake_colors', JSON.stringify(currentColorIndex));
+        }
+
+        // Actualizar visualización de los colores
+        function updateColorPreviews() {
+            document.querySelector('.snake1-preview').style.background = snakeColors[1][currentColorIndex[1]];
+            document.querySelector('.snake2-preview').style.background = snakeColors[2][currentColorIndex[2]];
+        }
+
+        // Cambiar color (siguiente o anterior)
+        function changeColor(snake, direction) {
+            const colors = snakeColors[snake];
+            currentColorIndex[snake] = (currentColorIndex[snake] + direction + colors.length) % colors.length;
+            updateColorPreviews();
+            saveColors();
+        }
+
+        // Event listeners para los botones
+        document.querySelectorAll('.prev-color').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const snake = parseInt(e.target.dataset.snake);
+                changeColor(snake, -1);
+            });
+        });
+
+        document.querySelectorAll('.next-color').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const snake = parseInt(e.target.dataset.snake);
+                changeColor(snake, 1);
+            });
+        });
+
+        // Cargar colores al iniciar
+        loadSavedColors();
     </script>
 </body>
 </html>
