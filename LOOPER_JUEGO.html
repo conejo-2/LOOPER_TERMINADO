@@ -619,12 +619,13 @@
                         demoCtx.lineCap = 'round';
                         demoCtx.stroke();
                     };
+                    const colors = getSnakeColors();
                     if (rollSin > 0) {
-                        drawSpiralWave(Math.PI, '#00eaff', backWidth);
-                        drawSpiralWave(0, '#ff00c8', frontWidth);
+                        drawSpiralWave(Math.PI, colors[2], backWidth);
+                        drawSpiralWave(0, colors[1], frontWidth);
                     } else {
-                        drawSpiralWave(0, '#ff00c8', backWidth);
-                        drawSpiralWave(Math.PI, '#00eaff', frontWidth);
+                        drawSpiralWave(0, colors[1], backWidth);
+                        drawSpiralWave(Math.PI, colors[2], frontWidth);
                     }
                 };
 
