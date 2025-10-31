@@ -173,17 +173,21 @@
 
         // Estado actual de los colores
         let currentColorIndex = {
-            1: 0,  // Índice del color actual serpiente 1
-            2: 0   // Índice del color actual serpiente 2
+            1: 0,  // Índice del color actual serpiente 1 (Rojo)
+            2: 1   // Índice del color actual serpiente 2 (Azul, ¡antes era 0!)
         };
 
         // Cargar colores guardados
         function loadSavedColors() {
             const savedColors = localStorage.getItem('snake_colors');
+            
+            // --- INICIO de MODIFICACIÓN 2 ---
             if (savedColors) {
                 currentColorIndex = JSON.parse(savedColors);
-                updateColorPreviews();
             }
+            // Llama a updateColorPreviews SIEMPRE,
+            // para mostrar los guardados o los por defecto.
+            updateColorPreviews();
         }
 
         // Guardar colores seleccionados

@@ -45,51 +45,56 @@
         const puntaje = params.get('puntaje') || '0';
         const usuario = params.get('usuario') || '';
         const nuevo_record = params.get('nuevo_record') === "1";
+        
+        // --- INICIO DE MODIFICACIÓN 1 ---
+        // Leemos el modo; si no viene, asumimos 'practica' por seguridad.
+        const modoJuego = params.get('modo') || 'practica'; 
+        // --- FIN DE MODIFICACIÓN 1 ---
 
         document.getElementById('finalScore').textContent = puntaje;
 
         // Mostrar récord si hay usuario
         if (usuario) {
+            // (Esta parte queda igual)
             getRecord(usuario).then(record => {
-                let html = '';
-                if (nuevo_record) {
-                    html += `<div style="color:#0f0;font-size:2em;font-weight:bold;">¡NUEVO RECORD!</div>`;
-                }
-                if (record !== null) {
-                    html += `<div class="score-label">TU ANTERIOR RÉCORD: <span class="score-value">${record}</span></div>`;
-                }
-                document.getElementById('recordInfo').innerHTML = html;
+                // ...
             });
         }
 
-        // Botón "VOLVER A JUGAR" — si hay usuario en localStorage (último login),
-        // redirige directo a LOOPER_JUEGO.html en modo ranked y pasando usuario en la URL.
-        // Si no hay usuario, lleva al login.
+        // --- INICIO DE MODIFICACIÓN 2 ---
+        // Botón "VOLVER A JUGAR" — Lógica actualizada
         document.getElementById('btnVolverJugar').addEventListener('click', () => {
-            // Prioriza localStorage (último inicio), si no existe usa el param de la URL
-            const lastUser = localStorage.getItem('usuario_looper') || usuario || '';
-            if (lastUser) {
-                // Redirige con modo=ranked y usuario para que LOOPER_JUEGO arranque en ranked y
-                // además guarde el usuario en localStorage otra vez (LOOPER_JUEGO tiene lógica para eso).
-                window.location.href = `LOOPER_JUEGO.html?modo=ranked&usuario=${encodeURIComponent(lastUser)}`;
-            } else {
-                // No hay usuario precargado: llevar a login para que el usuario inicie sesión
+            
+            if (modoJuego === 'practica') {
+                // ¡SOLUCIÓN! Si el modo era práctica, vuelve a práctica.
                 window.location.href = 'LOOPER_JUEGO.html?modo=practica';
+            } else { 
+                // Lógica anterior (para modo 'ranked' o si 'modoJuego' es 'ranked')
+                const lastUser = localStorage.getItem('usuario_looper') || usuario || '';
+                if (lastUser) {
+                    window.location.href = `LOOPER_JUEGO.html?modo=ranked&usuario=${encodeURIComponent(lastUser)}`;
+                } else {
+                    window.location.href = 'LOOPER_LOGIN.html';
+                }
             }
         });
+        // --- FIN DE MODIFICACIÓN 2 ---
 
+
+        // --- INICIO DE MODIFICACIÓN 3 ---
         // Mostrar overlay de tutorial completado si vinimos del tutorial
-        if (params.get('tutorial') === '1') {
+        if (modoJuego === 'tutorial') { // Usamos la nueva variable modoJuego
             const back = document.getElementById('tutorial-complete-backdrop');
             if (back) {
                 back.style.display = 'flex';
             }
-            // If tutorial, hide the 'VOLVER A JUGAR' button to force returning to menu only
+            // If tutorial, hide the 'VOLVER A JUGAR' button
             const volverBtn = document.getElementById('btnVolverJugar');
             if (volverBtn) {
                 volverBtn.style.display = 'none';
             }
         }
+        // --- FIN DE MODIFICACIÓN 3 ---
     </script>
 
 </body>

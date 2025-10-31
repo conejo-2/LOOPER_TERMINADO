@@ -811,26 +811,33 @@
                 document.body.style.backgroundColor = '#500';
                 setTimeout(() => {
                     const finalScore = Math.floor(puntaje);
-                    const tutorialParam = tutorialMode ? '&tutorial=1' : '';
+                    
+                    // --- INICIO DE MODIFICACIÓN ---
+
                     if (modo === "ranked") {
                         const user = localStorage.getItem('usuario_looper') || '';
                         guardarRanking(user, finalScore)
                             .then(resp => {
-                                // resp puede ser "nuevo", "no", "error"
-                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=${resp === "nuevo" ? 1 : 0}${tutorialParam}`;
+                                // Añadido: &modo=ranked
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=${resp === "nuevo" ? 1 : 0}&modo=ranked`;
                             })
                             .catch(err => {
                                 console.error("Error guardando ranking:", err);
-                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=0${tutorialParam}`;
+                                // Añadido: &modo=ranked
+                                window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&usuario=${encodeURIComponent(user)}&nuevo_record=0&modo=ranked`;
                             });
                     } else {
-                        window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}${tutorialParam}`;
+                        // Modificado: Ahora siempre pasa el modo (p.ej. &modo=practica o &modo=tutorial)
+                        window.location.href = `LOOPER_TERMINAR.html?puntaje=${finalScore}&modo=${modo}`;
                     }
+                    
+                    // --- FIN DE MODIFICACIÓN ---
                 }, 600);
             }
 
             requestAnimationFrame(gameLoop);
         }
+
 
         // start main loop and initialize tutorial UI if needed
         requestAnimationFrame(gameLoop);
